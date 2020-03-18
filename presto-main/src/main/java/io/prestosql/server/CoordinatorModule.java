@@ -51,6 +51,7 @@ import io.prestosql.execution.QueryInfo;
 import io.prestosql.execution.QueryManager;
 import io.prestosql.execution.QueryPerformanceFetcher;
 import io.prestosql.execution.QueryPreparer;
+import io.prestosql.execution.RefreshMaterializedViewTask;
 import io.prestosql.execution.RemoteTaskFactory;
 import io.prestosql.execution.SqlQueryManager;
 import io.prestosql.execution.TaskInfo;
@@ -249,7 +250,6 @@ public class CoordinatorModule
 
         binder.bind(SplitSchedulerStats.class).in(Scopes.SINGLETON);
         newExporter(binder).export(SplitSchedulerStats.class).withGeneratedName();
-
         MapBinder<String, ExecutionPolicy> executionPolicyBinder = newMapBinder(binder, String.class, ExecutionPolicy.class);
         executionPolicyBinder.addBinding("all-at-once").to(AllAtOnceExecutionPolicy.class);
         executionPolicyBinder.addBinding("phased").to(PhasedExecutionPolicy.class);

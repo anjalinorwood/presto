@@ -965,4 +965,37 @@ public interface ConnectorMetadata
      * <p>
      */
     default void validateScan(ConnectorSession session, ConnectorTableHandle handle) {}
+
+    /**
+     * Create the specified materialized view. The view definition is intended to
+     * be serialized by the connector for permanent storage.
+     */
+    default void createMaterializedView(ConnectorSession session, SchemaTableName viewName, ConnectorMaterializedViewDefinition definition, boolean replace, boolean notExists)
+    {
+        throw new PrestoException(NOT_SUPPORTED, "This connector does not support creating materialized views");
+    }
+
+    /**
+     * Refresh the specified materialized view.
+     */
+    default List<String> refreshMaterializedView(ConnectorSession session, SchemaTableName viewName)
+    {
+        throw new PrestoException(NOT_SUPPORTED, "This connector does not support refreshing materialized views");
+    }
+
+    /**
+     * Drop the specified materialized view.
+     */
+    default void dropMaterializedView(ConnectorSession session, SchemaTableName viewName)
+    {
+        throw new PrestoException(NOT_SUPPORTED, "This connector does not support dropping materialized views");
+    }
+
+    /**
+     * Gets the materialized view data for the specified materialized view name.
+     */
+    default Optional<ConnectorMaterializedViewDefinition> getMaterializedView(ConnectorSession session, SchemaTableName viewName)
+    {
+        return Optional.empty();
+    }
 }
