@@ -187,6 +187,16 @@ public class BeginTableWrite
                 DeleteTarget delete = (DeleteTarget) target;
                 return new DeleteTarget(metadata.beginDelete(session, delete.getHandle()), delete.getSchemaTableName());
             }
+            if (target instanceof TableWriterNode.RefreshMaterializedViewReference) {
+                TableWriterNode.RefreshMaterializedViewReference refreshMV = (TableWriterNode.RefreshMaterializedViewReference) target;
+                boolean skipRefresh = false;
+
+                if (metadata.isMaterializedViewCurrent(session, refreshMV.getMaterializedViewHandle()).getKey() == true) {
+                    skipRefresh = true;
+                }
+                return new TableWriterNode.RefreshMaterializedViewTarget(metadata.beginRefreshMaterializedView(session, refreshMV.getStorageTableHandle(), skipRefresh),
+                        metadata.getTableMetadata(session, refreshMV.getStorageTableHandle()).getTable(), skipRefresh, refreshMV.getSourceTableHandles());
+            }
             throw new IllegalArgumentException("Unhandled target type: " + target.getClass().getSimpleName());
         }
 

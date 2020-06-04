@@ -622,6 +622,11 @@ public abstract class AstVisitor<R, C>
         return visitStatement(node, context);
     }
 
+    protected R visitRefreshMaterializedView(RefreshMaterializedView node, C context)
+    {
+        return visitStatement(node, context);
+    }
+
     protected R visitCall(Call node, C context)
     {
         return visitStatement(node, context);
@@ -848,11 +853,6 @@ public abstract class AstVisitor<R, C>
     }
 
     protected R visitCreateMaterializedView(CreateMaterializedView node, C context)
-    {
-        return visitStatement(node, context);
-    }
-
-    protected R visitRefreshMaterializedView(RefreshMaterializedView node, C context)
     {
         return visitStatement(node, context);
     }

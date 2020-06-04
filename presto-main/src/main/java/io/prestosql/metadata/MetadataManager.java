@@ -109,6 +109,7 @@ import io.prestosql.type.InternalTypeManager;
 import javax.annotation.concurrent.GuardedBy;
 import javax.inject.Inject;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -846,6 +847,34 @@ public final class MetadataManager
     }
 
     @Override
+    public InsertTableHandle beginRefreshMaterializedView(Session session, TableHandle tableHandle, boolean skipRefresh)
+    {
+        CatalogName catalogName = tableHandle.getCatalogName();
+        CatalogMetadata catalogMetadata = getCatalogMetadataForWrite(session, catalogName);
+        ConnectorMetadata metadata = catalogMetadata.getMetadata();
+        ConnectorTransactionHandle transactionHandle = catalogMetadata.getTransactionHandleFor(catalogName);
+        ConnectorInsertTableHandle handle = metadata.beginRefreshMaterializedView(session.toConnectorSession(catalogName), tableHandle.getConnectorHandle(), skipRefresh);
+        return new InsertTableHandle(tableHandle.getCatalogName(), transactionHandle, handle);
+    }
+
+    @Override
+    public Optional<ConnectorOutputMetadata> finishRefreshMaterializedView(Session session,
+            InsertTableHandle tableHandle,
+            Collection<Slice> fragments,
+            Collection<ComputedStatistics> computedStatistics,
+            List<TableHandle> sourceTableHandles,
+            boolean skipRefresh)
+    {
+        CatalogName catalogName = tableHandle.getCatalogName();
+        ConnectorMetadata metadata = getMetadata(session, catalogName);
+        List<ConnectorTableHandle> sourceConnectorHandles = new ArrayList<>();
+        for (TableHandle handle : sourceTableHandles) {
+            sourceConnectorHandles.add(handle.getConnectorHandle());
+        }
+        return metadata.finishRefreshMaterializedView(session.toConnectorSession(catalogName), tableHandle.getConnectorHandle(), fragments, computedStatistics, sourceConnectorHandles, skipRefresh);
+    }
+
+    @Override
     public ColumnHandle getUpdateRowIdColumnHandle(Session session, TableHandle tableHandle)
     {
         CatalogName catalogName = tableHandle.getCatalogName();
@@ -1089,16 +1118,6 @@ public final class MetadataManager
     }
 
     @Override
-    public List<String> refreshMaterializedView(Session session, QualifiedObjectName viewName)
-    {
-        CatalogMetadata catalogMetadata = getCatalogMetadataForWrite(session, viewName.getCatalogName());
-        CatalogName catalogName = catalogMetadata.getCatalogName();
-        ConnectorMetadata metadata = catalogMetadata.getMetadata();
-
-        return metadata.refreshMaterializedView(session.toConnectorSession(catalogName), viewName.asSchemaTableName());
-    }
-
-    @Override
     public void dropMaterializedView(Session session, QualifiedObjectName viewName)
     {
         CatalogMetadata catalogMetadata = getCatalogMetadataForWrite(session, viewName.getCatalogName());
@@ -1111,10 +1130,30 @@ public final class MetadataManager
     @Override
     public Optional<ConnectorMaterializedViewDefinition> getMaterializedView(Session session, QualifiedObjectName viewName)
     {
-        return getOptionalCatalogMetadata(session, viewName.getCatalogName())
-                .flatMap(catalog -> catalog.getMetadata().getMaterializedView(
-                        session.toConnectorSession(catalog.getCatalogName()),
-                        viewName.asSchemaTableName()));
+        if (viewName.getCatalogName().isEmpty() || viewName.getSchemaName().isEmpty() || viewName.getObjectName().isEmpty()) {
+            // View cannot exist
+            return Optional.empty();
+        }
+
+        Optional<CatalogMetadata> catalog = getOptionalCatalogMetadata(session, viewName.getCatalogName());
+        if (catalog.isPresent()) {
+            CatalogMetadata catalogMetadata = catalog.get();
+            CatalogName catalogName = catalogMetadata.getConnectorId(session, viewName);
+            ConnectorMetadata metadata = catalogMetadata.getMetadataFor(catalogName);
+
+            ConnectorSession connectorSession = session.toConnectorSession(catalogName);
+            return metadata.getMaterializedView(connectorSession, viewName.asSchemaTableName());
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public AbstractMap.SimpleEntry<Boolean, Optional<String>> isMaterializedViewCurrent(Session session, TableHandle tableHandle)
+    {
+        CatalogName catalogName = tableHandle.getCatalogName();
+        CatalogMetadata catalogMetadata = getCatalogMetadata(session, catalogName);
+        ConnectorMetadata metadata = catalogMetadata.getMetadataFor(catalogName);
+        return metadata.isMaterializedViewCurrent(session.toConnectorSession(catalogName), tableHandle.getConnectorHandle());
     }
 
     @Override

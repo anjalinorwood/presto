@@ -120,7 +120,7 @@ public final class StatementUtils
         builder.put(RenameView.class, QueryType.DATA_DEFINITION);
         builder.put(DropView.class, QueryType.DATA_DEFINITION);
         builder.put(CreateMaterializedView.class, QueryType.DATA_DEFINITION);
-        builder.put(RefreshMaterializedView.class, QueryType.DATA_DEFINITION);
+        builder.put(RefreshMaterializedView.class, QueryType.INSERT);
         builder.put(DropMaterializedView.class, QueryType.DATA_DEFINITION);
         builder.put(Use.class, QueryType.DATA_DEFINITION);
         builder.put(SetSession.class, QueryType.DATA_DEFINITION);

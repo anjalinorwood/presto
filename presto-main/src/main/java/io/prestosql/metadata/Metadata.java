@@ -59,6 +59,7 @@ import io.prestosql.sql.analyzer.TypeSignatureProvider;
 import io.prestosql.sql.planner.PartitioningHandle;
 import io.prestosql.sql.tree.QualifiedName;
 
+import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -264,6 +265,17 @@ public interface Metadata
      * Finish insert query
      */
     Optional<ConnectorOutputMetadata> finishInsert(Session session, InsertTableHandle tableHandle, Collection<Slice> fragments, Collection<ComputedStatistics> computedStatistics);
+
+    /**
+     * Begin refresh materialized view query
+     */
+    InsertTableHandle beginRefreshMaterializedView(Session session, TableHandle tableHandle, boolean skipRefresh);
+
+    /**
+     * Finish refresh materialized view query
+     */
+    Optional<ConnectorOutputMetadata> finishRefreshMaterializedView(Session session, InsertTableHandle tableHandle, Collection<Slice> fragments,
+            Collection<ComputedStatistics> computedStatistics, List<TableHandle> sourceTableHandles, boolean skipRefresh);
 
     /**
      * Get the row ID column handle used with UpdatablePageSource.
@@ -541,11 +553,6 @@ public interface Metadata
     void createMaterializedView(Session session, QualifiedObjectName viewName, ConnectorMaterializedViewDefinition definition, boolean replace, boolean notExists);
 
     /**
-     * Refreshes the specified materialized view (by populating data in the materialized view corresponding to its definition).
-     */
-    List<String> refreshMaterializedView(Session session, QualifiedObjectName viewName);
-
-    /**
      * Drops the specified materialized view.
      */
     void dropMaterializedView(Session session, QualifiedObjectName viewName);
@@ -554,4 +561,9 @@ public interface Metadata
      * Returns the materialized view definition for the specified view name.
      */
     Optional<ConnectorMaterializedViewDefinition> getMaterializedView(Session session, QualifiedObjectName viewName);
+
+    /**
+     * Method for the engine to determine if a materialized view is current with respect to the tables it depends on.
+     */
+    AbstractMap.SimpleEntry<Boolean, Optional<String>> isMaterializedViewCurrent(Session session, TableHandle tableHandle);
 }

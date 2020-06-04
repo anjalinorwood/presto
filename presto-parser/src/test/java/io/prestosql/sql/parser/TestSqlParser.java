@@ -161,10 +161,8 @@ import io.prestosql.sql.tree.WithQuery;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static io.prestosql.sql.QueryUtil.ascending;
@@ -2655,6 +2653,7 @@ public class TestSqlParser
         assertStatement("DROP MATERIALIZED VIEW IF EXISTS a.b", new DropMaterializedView(QualifiedName.of("a", "b"), true));
         assertStatement("DROP MATERIALIZED VIEW IF EXISTS a.b.c", new DropMaterializedView(QualifiedName.of("a", "b", "c"), true));
     }
+
     @Test
     public void testNullTreatment()
     {

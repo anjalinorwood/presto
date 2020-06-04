@@ -168,6 +168,7 @@ public class Analysis
     private final Map<NodeRef<Unnest>, UnnestAnalysis> unnestAnalysis = new LinkedHashMap<>();
     private Optional<Create> create = Optional.empty();
     private Optional<Insert> insert = Optional.empty();
+    private Optional<RefreshMaterializedView> refreshMV = Optional.empty();
     private Optional<TableHandle> analyzeTarget = Optional.empty();
 
     // for describe input and describe output
@@ -607,6 +608,16 @@ public class Analysis
         return insert;
     }
 
+    public void setRefreshMaterializedView(RefreshMaterializedView refreshMV)
+    {
+        this.refreshMV = Optional.of(refreshMV);
+    }
+
+    public Optional<RefreshMaterializedView> getRefreshMaterializedView()
+    {
+        return refreshMV;
+    }
+
     public Query getNamedQuery(Table table)
     {
         return namedQueries.get(NodeRef.of(table));
@@ -973,6 +984,44 @@ public class Analysis
         public Optional<NewTableLayout> getNewTableLayout()
         {
             return newTableLayout;
+        }
+    }
+
+    @Immutable
+    public static final class RefreshMaterializedView
+    {
+        private final TableHandle materializedViewHandle;
+        private final TableHandle target;
+        private final Query query;
+        private final List<ColumnHandle> columns;
+
+        public RefreshMaterializedView(TableHandle materializedViewHandle, TableHandle target, Query query, List<ColumnHandle> columns)
+        {
+            this.materializedViewHandle = requireNonNull(materializedViewHandle, "Materialized view handle is null");
+            this.target = requireNonNull(target, "target is null");
+            this.query = query;
+            this.columns = requireNonNull(columns, "columns is null");
+            checkArgument(columns.size() > 0, "No columns given to refresh materialized view");
+        }
+
+        public Query getQuery()
+        {
+            return query;
+        }
+
+        public List<ColumnHandle> getColumns()
+        {
+            return columns;
+        }
+
+        public TableHandle getTarget()
+        {
+            return target;
+        }
+
+        public TableHandle getMaterializedViewHandle()
+        {
+            return materializedViewHandle;
         }
     }
 

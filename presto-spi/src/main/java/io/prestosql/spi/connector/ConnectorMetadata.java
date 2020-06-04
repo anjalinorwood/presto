@@ -29,6 +29,7 @@ import io.prestosql.spi.statistics.TableStatisticsMetadata;
 
 import javax.annotation.Nullable;
 
+import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -449,6 +450,23 @@ public interface ConnectorMetadata
     default Optional<ConnectorOutputMetadata> finishInsert(ConnectorSession session, ConnectorInsertTableHandle insertHandle, Collection<Slice> fragments, Collection<ComputedStatistics> computedStatistics)
     {
         throw new PrestoException(GENERIC_INTERNAL_ERROR, "ConnectorMetadata beginInsert() is implemented without finishInsert()");
+    }
+
+    /**
+     * Begin materialized view query
+     */
+    default ConnectorInsertTableHandle beginRefreshMaterializedView(ConnectorSession session, ConnectorTableHandle tableHandle, boolean skipRefresh)
+    {
+        throw new PrestoException(NOT_SUPPORTED, "This connector does not support materialized views");
+    }
+
+    /**
+     * Finish materialized view query
+     */
+    default Optional<ConnectorOutputMetadata> finishRefreshMaterializedView(ConnectorSession session, ConnectorInsertTableHandle insertHandle, Collection<Slice> fragments,
+            Collection<ComputedStatistics> computedStatistics, List<ConnectorTableHandle> sourceTableHandles, boolean skipRefresh)
+    {
+        throw new PrestoException(GENERIC_INTERNAL_ERROR, "ConnectorMetadata beginRefreshMaterializedView() is implemented without finishRefreshMaterializedView()");
     }
 
     /**
@@ -976,14 +994,6 @@ public interface ConnectorMetadata
     }
 
     /**
-     * Refresh the specified materialized view.
-     */
-    default List<String> refreshMaterializedView(ConnectorSession session, SchemaTableName viewName)
-    {
-        throw new PrestoException(NOT_SUPPORTED, "This connector does not support refreshing materialized views");
-    }
-
-    /**
      * Drop the specified materialized view.
      */
     default void dropMaterializedView(ConnectorSession session, SchemaTableName viewName)
@@ -997,5 +1007,13 @@ public interface ConnectorMetadata
     default Optional<ConnectorMaterializedViewDefinition> getMaterializedView(ConnectorSession session, SchemaTableName viewName)
     {
         return Optional.empty();
+    }
+
+    /**
+     * Method for the engine to determine if a materialized view is current with respect to the tables it depends on.
+     */
+    default AbstractMap.SimpleEntry<Boolean, Optional<String>> isMaterializedViewCurrent(ConnectorSession session, ConnectorTableHandle tableHandle)
+    {
+        return new AbstractMap.SimpleEntry(false, Optional.empty());
     }
 }

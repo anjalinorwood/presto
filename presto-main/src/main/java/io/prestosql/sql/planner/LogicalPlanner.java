@@ -78,6 +78,7 @@ import io.prestosql.sql.tree.NodeRef;
 import io.prestosql.sql.tree.NullLiteral;
 import io.prestosql.sql.tree.QualifiedName;
 import io.prestosql.sql.tree.Query;
+import io.prestosql.sql.tree.RefreshMaterializedView;
 import io.prestosql.sql.tree.Statement;
 import io.prestosql.sql.tree.StringLiteral;
 import io.prestosql.type.TypeCoercion;
@@ -243,7 +244,11 @@ public class LogicalPlanner
             checkState(analysis.getInsert().isPresent(), "Insert handle is missing");
             return createInsertPlan(analysis, (Insert) statement);
         }
-        if (statement instanceof Delete) {
+        else if (statement instanceof RefreshMaterializedView) {
+            checkState(analysis.getRefreshMaterializedView().isPresent(), "RefreshMaterializedView handle is missing");
+            return createRefreshMaterializedViewPlan(analysis);
+        }
+        else if (statement instanceof Delete) {
             return createDeletePlan(analysis, (Delete) statement);
         }
         if (statement instanceof Query) {
@@ -413,6 +418,76 @@ public class LogicalPlanner
                 insertedColumns,
                 insert.getNewTableLayout(),
                 statisticsMetadata);
+    }
+
+    private RelationPlan createRefreshMaterializedViewPlan(Analysis analysis)
+    {
+        Analysis.RefreshMaterializedView refreshMV = analysis.getRefreshMaterializedView().get();
+
+        TableMetadata tableMetadata = metadata.getTableMetadata(session, refreshMV.getTarget());
+
+        RelationPlan plan = createRelationPlan(analysis, refreshMV.getQuery());
+
+        Map<String, ColumnHandle> columns = metadata.getColumnHandles(session, refreshMV.getTarget());
+        Assignments.Builder assignments = Assignments.builder();
+        boolean supportsMissingColumnsOnInsert = metadata.supportsMissingColumnsOnInsert(session, refreshMV.getTarget());
+        ImmutableList.Builder<ColumnMetadata> insertedColumnsBuilder = ImmutableList.builder();
+
+        for (ColumnMetadata column : tableMetadata.getColumns()) {
+            if (column.isHidden()) {
+                continue;
+            }
+            Symbol output = symbolAllocator.newSymbol(column.getName(), column.getType());
+            int index = refreshMV.getColumns().indexOf(columns.get(column.getName()));
+            if (index < 0) {
+                if (supportsMissingColumnsOnInsert) {
+                    continue;
+                }
+                Expression cast = new Cast(new NullLiteral(), toSqlType(column.getType()));
+                assignments.put(output, cast);
+                insertedColumnsBuilder.add(column);
+            }
+            else {
+                Symbol input = plan.getSymbol(index);
+                Type tableType = column.getType();
+                Type queryType = symbolAllocator.getTypes().get(input);
+
+                if (queryType.equals(tableType) || typeCoercion.isTypeOnlyCoercion(queryType, tableType)) {
+                    assignments.put(output, input.toSymbolReference());
+                }
+                else {
+                    Expression cast = noTruncationCast(input.toSymbolReference(), queryType, tableType);
+                    assignments.put(output, cast);
+                }
+                insertedColumnsBuilder.add(column);
+            }
+        }
+
+        ProjectNode projectNode = new ProjectNode(idAllocator.getNextId(), plan.getRoot(), assignments.build());
+
+        List<ColumnMetadata> insertedColumns = insertedColumnsBuilder.build();
+        List<Field> fields = insertedColumns.stream()
+                .map(column -> Field.newUnqualified(column.getName(), column.getType()))
+                .collect(toImmutableList());
+        Scope scope = Scope.builder().withRelationType(RelationId.anonymous(), new RelationType(fields)).build();
+
+        plan = new RelationPlan(projectNode, scope, projectNode.getOutputSymbols(), Optional.empty());
+
+        String catalogName = refreshMV.getTarget().getCatalogName().getCatalogName();
+        TableStatisticsMetadata statisticsMetadata = metadata.getStatisticsCollectionMetadataForWrite(session, catalogName, tableMetadata.getMetadata());
+
+        List<String> insertedTableColumnNames = insertedColumns.stream()
+                .map(ColumnMetadata::getName)
+                .collect(toImmutableList());
+
+        Optional<NewTableLayout> newTableLayout = metadata.getInsertLayout(session, refreshMV.getTarget());
+        return createTableWriterPlan(
+            analysis,
+            plan,
+            new TableWriterNode.RefreshMaterializedViewReference(refreshMV.getMaterializedViewHandle(), refreshMV.getTarget(), new ArrayList<>(analysis.getTables())),
+            insertedTableColumnNames,
+            newTableLayout,
+            statisticsMetadata);
     }
 
     private RelationPlan createTableWriterPlan(

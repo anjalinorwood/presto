@@ -58,6 +58,7 @@ import io.prestosql.spi.statistics.TableStatisticsMetadata;
 
 import javax.inject.Inject;
 
+import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -437,6 +438,23 @@ public class ClassLoaderSafeConnectorMetadata
     }
 
     @Override
+    public ConnectorInsertTableHandle beginRefreshMaterializedView(ConnectorSession session, ConnectorTableHandle tableHandle, boolean skipRefresh)
+    {
+        try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
+            return delegate.beginRefreshMaterializedView(session, tableHandle, skipRefresh);
+        }
+    }
+
+    @Override
+    public Optional<ConnectorOutputMetadata> finishRefreshMaterializedView(ConnectorSession session, ConnectorInsertTableHandle insertHandle, Collection<Slice> fragments,
+            Collection<ComputedStatistics> computedStatistics, List<ConnectorTableHandle> sourceTableHandles, boolean skipRefresh)
+    {
+        try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
+            return delegate.finishRefreshMaterializedView(session, insertHandle, fragments, computedStatistics, sourceTableHandles, skipRefresh);
+        }
+    }
+
+    @Override
     public void createView(ConnectorSession session, SchemaTableName viewName, ConnectorViewDefinition definition, boolean replace)
     {
         try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
@@ -742,6 +760,7 @@ public class ClassLoaderSafeConnectorMetadata
         }
     }
 
+    @Override
     public void createMaterializedView(ConnectorSession session, SchemaTableName viewName, ConnectorMaterializedViewDefinition definition, boolean replace, boolean notExists)
     {
         try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
@@ -750,18 +769,26 @@ public class ClassLoaderSafeConnectorMetadata
     }
 
     @Override
-    public List<String> refreshMaterializedView(ConnectorSession session, SchemaTableName viewName)
-    {
-        try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
-            return delegate.refreshMaterializedView(session, viewName);
-        }
-    }
-
-    @Override
     public void dropMaterializedView(ConnectorSession session, SchemaTableName viewName)
     {
         try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
             delegate.dropMaterializedView(session, viewName);
+        }
+    }
+
+    @Override
+    public Optional<ConnectorMaterializedViewDefinition> getMaterializedView(ConnectorSession session, SchemaTableName viewName)
+    {
+        try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
+            return delegate.getMaterializedView(session, viewName);
+        }
+    }
+
+    @Override
+    public AbstractMap.SimpleEntry<Boolean, Optional<String>> isMaterializedViewCurrent(ConnectorSession session, ConnectorTableHandle tableHandle)
+    {
+        try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
+            return delegate.isMaterializedViewCurrent(session, tableHandle);
         }
     }
 }

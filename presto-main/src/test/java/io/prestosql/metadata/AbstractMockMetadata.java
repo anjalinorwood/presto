@@ -63,6 +63,7 @@ import io.prestosql.sql.analyzer.TypeSignatureProvider;
 import io.prestosql.sql.planner.PartitioningHandle;
 import io.prestosql.sql.tree.QualifiedName;
 
+import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -333,6 +334,19 @@ public abstract class AbstractMockMetadata
 
     @Override
     public Optional<ConnectorOutputMetadata> finishInsert(Session session, InsertTableHandle tableHandle, Collection<Slice> fragments, Collection<ComputedStatistics> computedStatistics)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public InsertTableHandle beginRefreshMaterializedView(Session session, TableHandle tableHandle, boolean skipRefresh)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Optional<ConnectorOutputMetadata> finishRefreshMaterializedView(Session session, InsertTableHandle tableHandle, Collection<Slice> fragments,
+            Collection<ComputedStatistics> computedStatistics, List<TableHandle> sourceTableHandles, boolean skipRefresh)
     {
         throw new UnsupportedOperationException();
     }
@@ -757,12 +771,6 @@ public abstract class AbstractMockMetadata
     }
 
     @Override
-    public List<String> refreshMaterializedView(Session session, QualifiedObjectName viewName)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public void dropMaterializedView(Session session, QualifiedObjectName viewName)
     {
         throw new UnsupportedOperationException();
@@ -770,6 +778,12 @@ public abstract class AbstractMockMetadata
 
     @Override
     public Optional<ConnectorMaterializedViewDefinition> getMaterializedView(Session session, QualifiedObjectName viewName)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public AbstractMap.SimpleEntry<Boolean, Optional<String>> isMaterializedViewCurrent(Session session, TableHandle tableHandle)
     {
         throw new UnsupportedOperationException();
     }

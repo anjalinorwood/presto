@@ -51,7 +51,6 @@ import io.prestosql.execution.QueryInfo;
 import io.prestosql.execution.QueryManager;
 import io.prestosql.execution.QueryPerformanceFetcher;
 import io.prestosql.execution.QueryPreparer;
-import io.prestosql.execution.RefreshMaterializedViewTask;
 import io.prestosql.execution.RemoteTaskFactory;
 import io.prestosql.execution.SqlQueryManager;
 import io.prestosql.execution.TaskInfo;
