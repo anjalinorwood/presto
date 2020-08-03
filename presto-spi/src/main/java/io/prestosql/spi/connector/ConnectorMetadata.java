@@ -29,7 +29,6 @@ import io.prestosql.spi.statistics.TableStatisticsMetadata;
 
 import javax.annotation.Nullable;
 
-import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -987,8 +986,10 @@ public interface ConnectorMetadata
     /**
      * Create the specified materialized view. The view definition is intended to
      * be serialized by the connector for permanent storage.
+     * @throws PrestoException with {@code ALREADY_EXISTS} if the object already exists and {@param ignoreExisting} is not set
+     *
      */
-    default void createMaterializedView(ConnectorSession session, SchemaTableName viewName, ConnectorMaterializedViewDefinition definition, boolean replace, boolean notExists)
+    default void createMaterializedView(ConnectorSession session, SchemaTableName viewName, ConnectorMaterializedViewDefinition definition, boolean replace, boolean ignoreExisting)
     {
         throw new PrestoException(NOT_SUPPORTED, "This connector does not support creating materialized views");
     }
@@ -1012,8 +1013,8 @@ public interface ConnectorMetadata
     /**
      * Method for the engine to determine if a materialized view is current with respect to the tables it depends on.
      */
-    default AbstractMap.SimpleEntry<Boolean, Optional<String>> isMaterializedViewCurrent(ConnectorSession session, ConnectorTableHandle tableHandle)
+    default MaterializedViewFreshness isMaterializedViewCurrent(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
-        return new AbstractMap.SimpleEntry(false, Optional.empty());
+        return new MaterializedViewFreshness(false, Optional.empty());
     }
 }

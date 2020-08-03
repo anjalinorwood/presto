@@ -340,7 +340,7 @@ public class TableWriterNode
         {
             this.materializedViewHandle = requireNonNull(materializedViewHandle, "Materialized view handle is null");
             this.storageTableHandle = requireNonNull(storageTableHandle, "Storage table handle is null");
-            this.sourceTableHandles = sourceTableHandles;
+            this.sourceTableHandles = ImmutableList.copyOf(sourceTableHandles);
         }
 
         public TableHandle getMaterializedViewHandle()
@@ -380,10 +380,10 @@ public class TableWriterNode
                 @JsonProperty("skipRefresh") boolean skipRefresh,
                 @JsonProperty("sourceTableHandles") List<TableHandle> sourceTableHandles)
         {
-            this.handle = handle;
+            this.handle = requireNonNull(handle, "handle is null");
             this.schemaTableName = requireNonNull(schemaTableName, "schemaTableName is null");
             this.skipRefresh = skipRefresh;
-            this.sourceTableHandles = sourceTableHandles;
+            this.sourceTableHandles = ImmutableList.copyOf(sourceTableHandles);
         }
 
         @JsonProperty

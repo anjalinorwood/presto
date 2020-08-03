@@ -39,6 +39,7 @@ import io.prestosql.spi.connector.ConnectorViewDefinition;
 import io.prestosql.spi.connector.Constraint;
 import io.prestosql.spi.connector.ConstraintApplicationResult;
 import io.prestosql.spi.connector.LimitApplicationResult;
+import io.prestosql.spi.connector.MaterializedViewFreshness;
 import io.prestosql.spi.connector.ProjectionApplicationResult;
 import io.prestosql.spi.connector.SampleType;
 import io.prestosql.spi.connector.SchemaTableName;
@@ -58,7 +59,6 @@ import io.prestosql.spi.statistics.TableStatisticsMetadata;
 
 import javax.inject.Inject;
 
-import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -761,10 +761,10 @@ public class ClassLoaderSafeConnectorMetadata
     }
 
     @Override
-    public void createMaterializedView(ConnectorSession session, SchemaTableName viewName, ConnectorMaterializedViewDefinition definition, boolean replace, boolean notExists)
+    public void createMaterializedView(ConnectorSession session, SchemaTableName viewName, ConnectorMaterializedViewDefinition definition, boolean replace, boolean ignoreExisting)
     {
         try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
-            delegate.createMaterializedView(session, viewName, definition, replace, notExists);
+            delegate.createMaterializedView(session, viewName, definition, replace, ignoreExisting);
         }
     }
 
@@ -785,7 +785,7 @@ public class ClassLoaderSafeConnectorMetadata
     }
 
     @Override
-    public AbstractMap.SimpleEntry<Boolean, Optional<String>> isMaterializedViewCurrent(ConnectorSession session, ConnectorTableHandle tableHandle)
+    public MaterializedViewFreshness isMaterializedViewCurrent(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
         try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
             return delegate.isMaterializedViewCurrent(session, tableHandle);

@@ -34,6 +34,7 @@ import io.prestosql.spi.connector.ConnectorViewDefinition;
 import io.prestosql.spi.connector.Constraint;
 import io.prestosql.spi.connector.ConstraintApplicationResult;
 import io.prestosql.spi.connector.LimitApplicationResult;
+import io.prestosql.spi.connector.MaterializedViewFreshness;
 import io.prestosql.spi.connector.ProjectionApplicationResult;
 import io.prestosql.spi.connector.SampleType;
 import io.prestosql.spi.connector.SortItem;
@@ -59,7 +60,6 @@ import io.prestosql.sql.analyzer.TypeSignatureProvider;
 import io.prestosql.sql.planner.PartitioningHandle;
 import io.prestosql.sql.tree.QualifiedName;
 
-import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -550,7 +550,7 @@ public interface Metadata
     /**
      * Creates the specified materialized view with the specified view definition.
      */
-    void createMaterializedView(Session session, QualifiedObjectName viewName, ConnectorMaterializedViewDefinition definition, boolean replace, boolean notExists);
+    void createMaterializedView(Session session, QualifiedObjectName viewName, ConnectorMaterializedViewDefinition definition, boolean replace, boolean ignoreExisting);
 
     /**
      * Drops the specified materialized view.
@@ -565,5 +565,5 @@ public interface Metadata
     /**
      * Method for the engine to determine if a materialized view is current with respect to the tables it depends on.
      */
-    AbstractMap.SimpleEntry<Boolean, Optional<String>> isMaterializedViewCurrent(Session session, TableHandle tableHandle);
+    MaterializedViewFreshness isMaterializedViewCurrent(Session session, TableHandle tableHandle);
 }

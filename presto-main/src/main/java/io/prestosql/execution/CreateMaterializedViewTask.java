@@ -43,7 +43,6 @@ import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.util.concurrent.Futures.immediateFuture;
 import static io.prestosql.metadata.MetadataUtil.createQualifiedObjectName;
 import static io.prestosql.spi.StandardErrorCode.NOT_FOUND;
-import static io.prestosql.spi.connector.ConnectorViewDefinition.ViewColumn;
 import static io.prestosql.sql.NodeUtils.mapFromProperties;
 import static io.prestosql.sql.ParameterUtils.parameterExtractor;
 import static io.prestosql.sql.SqlFormatterUtil.getFormattedSql;
@@ -85,16 +84,13 @@ public class CreateMaterializedViewTask
         QualifiedObjectName name = createQualifiedObjectName(session, statement, statement.getName());
         Map<NodeRef<Parameter>, Expression> parameterLookup = parameterExtractor(statement, parameters);
 
-        accessControl.checkCanCreateView(session.toSecurityContext(), name);
-        accessControl.checkCanCreateTable(session.toSecurityContext(), name);
-
         String sql = getFormattedSql(statement.getQuery(), sqlParser);
 
         Analysis analysis = analyzeStatement(statement, session, metadata, accessControl, parameters, parameterLookup, stateMachine.getWarningCollector(), sql);
 
-        List<ViewColumn> columns = analysis.getOutputDescriptor(statement.getQuery())
+        List<ConnectorMaterializedViewDefinition.Column> columns = analysis.getOutputDescriptor(statement.getQuery())
                 .getVisibleFields().stream()
-                .map(field -> new ViewColumn(field.getName().get(), field.getType().getTypeId()))
+                .map(field -> new ConnectorMaterializedViewDefinition.Column(field.getName().get(), field.getType().getTypeId()))
                 .collect(toImmutableList());
 
         Optional<String> owner = Optional.of(session.getUser());

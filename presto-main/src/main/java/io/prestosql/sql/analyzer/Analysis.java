@@ -168,7 +168,7 @@ public class Analysis
     private final Map<NodeRef<Unnest>, UnnestAnalysis> unnestAnalysis = new LinkedHashMap<>();
     private Optional<Create> create = Optional.empty();
     private Optional<Insert> insert = Optional.empty();
-    private Optional<RefreshMaterializedView> refreshMV = Optional.empty();
+    private Optional<RefreshMaterializedViewAnalysis> refreshMaterializedView = Optional.empty();
     private Optional<TableHandle> analyzeTarget = Optional.empty();
 
     // for describe input and describe output
@@ -608,14 +608,14 @@ public class Analysis
         return insert;
     }
 
-    public void setRefreshMaterializedView(RefreshMaterializedView refreshMV)
+    public void setRefreshMaterializedView(RefreshMaterializedViewAnalysis refreshMaterializedView)
     {
-        this.refreshMV = Optional.of(refreshMV);
+        this.refreshMaterializedView = Optional.of(refreshMaterializedView);
     }
 
-    public Optional<RefreshMaterializedView> getRefreshMaterializedView()
+    public Optional<RefreshMaterializedViewAnalysis> getRefreshMaterializedView()
     {
-        return refreshMV;
+        return refreshMaterializedView;
     }
 
     public Query getNamedQuery(Table table)
@@ -988,14 +988,14 @@ public class Analysis
     }
 
     @Immutable
-    public static final class RefreshMaterializedView
+    public static final class RefreshMaterializedViewAnalysis
     {
         private final TableHandle materializedViewHandle;
         private final TableHandle target;
         private final Query query;
         private final List<ColumnHandle> columns;
 
-        public RefreshMaterializedView(TableHandle materializedViewHandle, TableHandle target, Query query, List<ColumnHandle> columns)
+        public RefreshMaterializedViewAnalysis(TableHandle materializedViewHandle, TableHandle target, Query query, List<ColumnHandle> columns)
         {
             this.materializedViewHandle = requireNonNull(materializedViewHandle, "Materialized view handle is null");
             this.target = requireNonNull(target, "target is null");

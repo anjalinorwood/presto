@@ -191,7 +191,7 @@ public class BeginTableWrite
                 TableWriterNode.RefreshMaterializedViewReference refreshMV = (TableWriterNode.RefreshMaterializedViewReference) target;
                 boolean skipRefresh = false;
 
-                if (metadata.isMaterializedViewCurrent(session, refreshMV.getMaterializedViewHandle()).getKey() == true) {
+                if (metadata.isMaterializedViewCurrent(session, refreshMV.getMaterializedViewHandle()).getIsFresh()) {
                     skipRefresh = true;
                 }
                 return new TableWriterNode.RefreshMaterializedViewTarget(metadata.beginRefreshMaterializedView(session, refreshMV.getStorageTableHandle(), skipRefresh),

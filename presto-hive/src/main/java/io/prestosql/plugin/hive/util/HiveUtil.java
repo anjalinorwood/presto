@@ -37,6 +37,7 @@ import io.prestosql.plugin.hive.metastore.Column;
 import io.prestosql.plugin.hive.metastore.Table;
 import io.prestosql.spi.ErrorCodeSupplier;
 import io.prestosql.spi.PrestoException;
+import io.prestosql.spi.connector.ConnectorMaterializedViewDefinition;
 import io.prestosql.spi.connector.ConnectorViewDefinition;
 import io.prestosql.spi.connector.ConnectorViewDefinition.ViewColumn;
 import io.prestosql.spi.connector.RecordCursor;
@@ -180,8 +181,12 @@ public final class HiveUtil
 
     private static final String VIEW_PREFIX = "/* Presto View: ";
     private static final String VIEW_SUFFIX = " */";
+    private static final String MATERIALIZED_VIEW_PREFIX = VIEW_PREFIX; // to treat materialized views like views when stale
+    private static final String MATERIALIZED_VIEW_SUFFIX = VIEW_SUFFIX;
     private static final JsonCodec<ConnectorViewDefinition> VIEW_CODEC =
             new JsonCodecFactory(new ObjectMapperProvider()).jsonCodec(ConnectorViewDefinition.class);
+    private static final JsonCodec<ConnectorMaterializedViewDefinition> MATERIALIZED_VIEW_CODEC =
+            new JsonCodecFactory(new ObjectMapperProvider()).jsonCodec(ConnectorMaterializedViewDefinition.class);
 
     private static final DateTimeFormatter HIVE_DATE_PARSER = ISODateTimeFormat.date().withZoneUTC();
     private static final DateTimeFormatter HIVE_TIMESTAMP_PARSER;
@@ -675,6 +680,23 @@ public final class HiveUtil
         data = data.substring(0, data.length() - VIEW_SUFFIX.length());
         byte[] bytes = Base64.getDecoder().decode(data);
         return VIEW_CODEC.fromJson(bytes);
+    }
+
+    public static String encodeMaterializedViewData(ConnectorMaterializedViewDefinition definition)
+    {
+        byte[] bytes = MATERIALIZED_VIEW_CODEC.toJsonBytes(definition);
+        String data = Base64.getEncoder().encodeToString(bytes);
+        return MATERIALIZED_VIEW_PREFIX + data + MATERIALIZED_VIEW_SUFFIX;
+    }
+
+    public static ConnectorMaterializedViewDefinition decodeMaterializedViewData(String data)
+    {
+        checkCondition(data.startsWith(MATERIALIZED_VIEW_PREFIX), HIVE_INVALID_VIEW_DATA, "Materialized View data missing prefix: %s", data);
+        checkCondition(data.endsWith(MATERIALIZED_VIEW_SUFFIX), HIVE_INVALID_VIEW_DATA, "Materialized View data missing suffix: %s", data);
+        data = data.substring(MATERIALIZED_VIEW_PREFIX.length());
+        data = data.substring(0, data.length() - MATERIALIZED_VIEW_SUFFIX.length());
+        byte[] bytes = Base64.getDecoder().decode(data);
+        return MATERIALIZED_VIEW_CODEC.fromJson(bytes);
     }
 
     public static ConnectorViewDefinition buildHiveViewConnectorDefinition(CatalogName catalogName, Table view)

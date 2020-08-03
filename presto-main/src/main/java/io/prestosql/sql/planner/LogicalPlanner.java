@@ -124,13 +124,7 @@ import static java.util.Objects.requireNonNull;
 
 public class LogicalPlanner
 {
-    public enum Stage
-    {
-        CREATED, OPTIMIZED, OPTIMIZED_AND_VALIDATED
-    }
-
     private final PlanNodeIdAllocator idAllocator;
-
     private final Session session;
     private final List<PlanOptimizer> planOptimizers;
     private final PlanSanityChecker planSanityChecker;
@@ -178,6 +172,34 @@ public class LogicalPlanner
         this.statsCalculator = requireNonNull(statsCalculator, "statsCalculator is null");
         this.costCalculator = requireNonNull(costCalculator, "costCalculator is null");
         this.warningCollector = requireNonNull(warningCollector, "warningCollector is null");
+    }
+
+    private static Map<NodeRef<LambdaArgumentDeclaration>, Symbol> buildLambdaDeclarationToSymbolMap(Analysis analysis, SymbolAllocator symbolAllocator)
+    {
+        Map<Key, Symbol> allocations = new HashMap<>();
+        Map<NodeRef<LambdaArgumentDeclaration>, Symbol> result = new LinkedHashMap<>();
+
+        for (Entry<NodeRef<Expression>, Type> entry : analysis.getTypes().entrySet()) {
+            if (!(entry.getKey().getNode() instanceof LambdaArgumentDeclaration)) {
+                continue;
+            }
+
+            LambdaArgumentDeclaration argument = (LambdaArgumentDeclaration) entry.getKey().getNode();
+            Key key = new Key(argument, entry.getValue());
+
+            // Allocate the same symbol for all lambda argument names with a given type. This is needed to be able to
+            // properly identify multiple instances of syntactically equal lambda expressions during planning as expressions
+            // get rewritten via TranslationMap
+            Symbol symbol = allocations.get(key);
+            if (symbol == null) {
+                symbol = symbolAllocator.newSymbol(argument, entry.getValue());
+                allocations.put(key, symbol);
+            }
+
+            result.put(NodeRef.of(argument), symbol);
+        }
+
+        return result;
     }
 
     public Plan plan(Analysis analysis)
@@ -245,7 +267,7 @@ public class LogicalPlanner
             return createInsertPlan(analysis, (Insert) statement);
         }
         else if (statement instanceof RefreshMaterializedView) {
-            checkState(analysis.getRefreshMaterializedView().isPresent(), "RefreshMaterializedView handle is missing");
+            checkState(analysis.getRefreshMaterializedView().isPresent(), "RefreshMaterializedViewAnalysis handle is missing");
             return createRefreshMaterializedViewPlan(analysis);
         }
         else if (statement instanceof Delete) {
@@ -299,14 +321,14 @@ public class LogicalPlanner
         PlanNode planNode = new StatisticsWriterNode(
                 idAllocator.getNextId(),
                 new AggregationNode(
-                        idAllocator.getNextId(),
-                        TableScanNode.newInstance(idAllocator.getNextId(), targetTable, tableScanOutputs.build(), symbolToColumnHandle.build()),
-                        statisticAggregations.getAggregations(),
-                        singleGroupingSet(groupingSymbols),
-                        ImmutableList.of(),
-                        AggregationNode.Step.SINGLE,
-                        Optional.empty(),
-                        Optional.empty()),
+                idAllocator.getNextId(),
+                TableScanNode.newInstance(idAllocator.getNextId(), targetTable, tableScanOutputs.build(), symbolToColumnHandle.build()),
+                statisticAggregations.getAggregations(),
+                singleGroupingSet(groupingSymbols),
+                ImmutableList.of(),
+                AggregationNode.Step.SINGLE,
+                Optional.empty(),
+                Optional.empty()),
                 new StatisticsWriterNode.WriteStatisticsReference(targetTable),
                 symbolAllocator.newSymbol("rows", BIGINT),
                 tableStatisticsMetadata.getTableStatistics().contains(ROW_COUNT),
@@ -346,17 +368,21 @@ public class LogicalPlanner
                 statisticsMetadata);
     }
 
-    private RelationPlan createInsertPlan(Analysis analysis, Insert insertStatement)
+    private RelationPlan getInsertPlan(Analysis analysis,
+            Query query,
+            TableHandle tableHandle,
+            List<ColumnHandle> insertColumns,
+            Optional<NewTableLayout> newTableLayout,
+            boolean isMaterializedViewRefresh,
+            WriterTarget writerTarget)
     {
-        Analysis.Insert insert = analysis.getInsert().get();
+        TableMetadata tableMetadata = metadata.getTableMetadata(session, tableHandle);
 
-        TableMetadata tableMetadata = metadata.getTableMetadata(session, insert.getTarget());
+        RelationPlan plan = createRelationPlan(analysis, query);
 
-        RelationPlan plan = createRelationPlan(analysis, insertStatement.getQuery());
-
-        Map<String, ColumnHandle> columns = metadata.getColumnHandles(session, insert.getTarget());
+        Map<String, ColumnHandle> columns = metadata.getColumnHandles(session, tableHandle);
         Assignments.Builder assignments = Assignments.builder();
-        boolean supportsMissingColumnsOnInsert = metadata.supportsMissingColumnsOnInsert(session, insert.getTarget());
+        boolean supportsMissingColumnsOnInsert = metadata.supportsMissingColumnsOnInsert(session, tableHandle);
         ImmutableList.Builder<ColumnMetadata> insertedColumnsBuilder = ImmutableList.builder();
 
         for (ColumnMetadata column : tableMetadata.getColumns()) {
@@ -364,7 +390,7 @@ public class LogicalPlanner
                 continue;
             }
             Symbol output = symbolAllocator.newSymbol(column.getName(), column.getType());
-            int index = insert.getColumns().indexOf(columns.get(column.getName()));
+            int index = insertColumns.indexOf(columns.get(column.getName()));
             if (index < 0) {
                 if (supportsMissingColumnsOnInsert) {
                     continue;
@@ -399,95 +425,56 @@ public class LogicalPlanner
 
         plan = new RelationPlan(projectNode, scope, projectNode.getOutputSymbols(), Optional.empty());
 
-        String catalogName = insert.getTarget().getCatalogName().getCatalogName();
-        TableStatisticsMetadata statisticsMetadata = metadata.getStatisticsCollectionMetadataForWrite(session, catalogName, tableMetadata.getMetadata());
-
         List<String> insertedTableColumnNames = insertedColumns.stream()
                 .map(ColumnMetadata::getName)
                 .collect(toImmutableList());
 
+        String catalogName = tableHandle.getCatalogName().getCatalogName();
+        TableStatisticsMetadata statisticsMetadata = metadata.getStatisticsCollectionMetadataForWrite(session, catalogName, tableMetadata.getMetadata());
+
+        if (isMaterializedViewRefresh) {
+            return createTableWriterPlan(
+                analysis,
+                plan,
+                requireNonNull(writerTarget, "writerTarget for materialized view refresh is null"),
+                insertedTableColumnNames,
+                insertedColumns,
+                newTableLayout,
+                statisticsMetadata);
+        }
+        InsertReference insertTarget = new InsertReference(
+                tableHandle,
+                insertedTableColumnNames.stream()
+                    .map(columns::get)
+                    .collect(toImmutableList()));
         return createTableWriterPlan(
                 analysis,
                 plan,
-                new InsertReference(
-                        insert.getTarget(),
-                        insertedTableColumnNames.stream()
-                                .map(columns::get)
-                                .collect(toImmutableList())),
+                insertTarget,
                 insertedTableColumnNames,
                 insertedColumns,
-                insert.getNewTableLayout(),
+                newTableLayout,
                 statisticsMetadata);
+    }
+
+    private RelationPlan createInsertPlan(Analysis analysis, Insert insertStatement)
+    {
+        Analysis.Insert insert = analysis.getInsert().get();
+        TableHandle tableHandle = insert.getTarget();
+        Query query = insertStatement.getQuery();
+        Optional<NewTableLayout> newTableLayout = insert.getNewTableLayout();
+        return getInsertPlan(analysis, query, tableHandle, insert.getColumns(), newTableLayout, false, null);
     }
 
     private RelationPlan createRefreshMaterializedViewPlan(Analysis analysis)
     {
-        Analysis.RefreshMaterializedView refreshMV = analysis.getRefreshMaterializedView().get();
-
-        TableMetadata tableMetadata = metadata.getTableMetadata(session, refreshMV.getTarget());
-
-        RelationPlan plan = createRelationPlan(analysis, refreshMV.getQuery());
-
-        Map<String, ColumnHandle> columns = metadata.getColumnHandles(session, refreshMV.getTarget());
-        Assignments.Builder assignments = Assignments.builder();
-        boolean supportsMissingColumnsOnInsert = metadata.supportsMissingColumnsOnInsert(session, refreshMV.getTarget());
-        ImmutableList.Builder<ColumnMetadata> insertedColumnsBuilder = ImmutableList.builder();
-
-        for (ColumnMetadata column : tableMetadata.getColumns()) {
-            if (column.isHidden()) {
-                continue;
-            }
-            Symbol output = symbolAllocator.newSymbol(column.getName(), column.getType());
-            int index = refreshMV.getColumns().indexOf(columns.get(column.getName()));
-            if (index < 0) {
-                if (supportsMissingColumnsOnInsert) {
-                    continue;
-                }
-                Expression cast = new Cast(new NullLiteral(), toSqlType(column.getType()));
-                assignments.put(output, cast);
-                insertedColumnsBuilder.add(column);
-            }
-            else {
-                Symbol input = plan.getSymbol(index);
-                Type tableType = column.getType();
-                Type queryType = symbolAllocator.getTypes().get(input);
-
-                if (queryType.equals(tableType) || typeCoercion.isTypeOnlyCoercion(queryType, tableType)) {
-                    assignments.put(output, input.toSymbolReference());
-                }
-                else {
-                    Expression cast = noTruncationCast(input.toSymbolReference(), queryType, tableType);
-                    assignments.put(output, cast);
-                }
-                insertedColumnsBuilder.add(column);
-            }
-        }
-
-        ProjectNode projectNode = new ProjectNode(idAllocator.getNextId(), plan.getRoot(), assignments.build());
-
-        List<ColumnMetadata> insertedColumns = insertedColumnsBuilder.build();
-        List<Field> fields = insertedColumns.stream()
-                .map(column -> Field.newUnqualified(column.getName(), column.getType()))
-                .collect(toImmutableList());
-        Scope scope = Scope.builder().withRelationType(RelationId.anonymous(), new RelationType(fields)).build();
-
-        plan = new RelationPlan(projectNode, scope, projectNode.getOutputSymbols(), Optional.empty());
-
-        String catalogName = refreshMV.getTarget().getCatalogName().getCatalogName();
-        TableStatisticsMetadata statisticsMetadata = metadata.getStatisticsCollectionMetadataForWrite(session, catalogName, tableMetadata.getMetadata());
-
-        List<String> insertedTableColumnNames = insertedColumns.stream()
-                .map(ColumnMetadata::getName)
-                .collect(toImmutableList());
-
-        Optional<NewTableLayout> newTableLayout = metadata.getInsertLayout(session, refreshMV.getTarget());
-        return createTableWriterPlan(
-            analysis,
-            plan,
-            new TableWriterNode.RefreshMaterializedViewReference(refreshMV.getMaterializedViewHandle(), refreshMV.getTarget(), new ArrayList<>(analysis.getTables())),
-            insertedTableColumnNames,
-            newTableLayout,
-            statisticsMetadata);
+        Analysis.RefreshMaterializedViewAnalysis viewAnalysis = analysis.getRefreshMaterializedView().get();
+        TableHandle tableHandle = viewAnalysis.getTarget();
+        Query query = viewAnalysis.getQuery();
+        Optional<NewTableLayout> newTableLayout = metadata.getInsertLayout(session, viewAnalysis.getTarget());
+        TableWriterNode.RefreshMaterializedViewReference writerTarget = new TableWriterNode.RefreshMaterializedViewReference(viewAnalysis.getMaterializedViewHandle(),
+                tableHandle, new ArrayList<>(analysis.getTables()));
+        return getInsertPlan(analysis, query, tableHandle, viewAnalysis.getColumns(), newTableLayout, true, writerTarget);
     }
 
     private RelationPlan createTableWriterPlan(
@@ -507,24 +494,24 @@ public class LogicalPlanner
         if (writeTableLayout.isPresent()) {
             List<Symbol> partitionFunctionArguments = new ArrayList<>();
             writeTableLayout.get().getPartitionColumns().stream()
-                    .mapToInt(columnNames::indexOf)
-                    .mapToObj(symbols::get)
-                    .forEach(partitionFunctionArguments::add);
+                .mapToInt(columnNames::indexOf)
+                .mapToObj(symbols::get)
+                .forEach(partitionFunctionArguments::add);
 
             List<Symbol> outputLayout = new ArrayList<>(symbols);
 
             Optional<PartitioningHandle> partitioningHandle = writeTableLayout.get().getPartitioning();
             if (partitioningHandle.isPresent()) {
                 partitioningScheme = Optional.of(new PartitioningScheme(
-                        Partitioning.create(partitioningHandle.get(), partitionFunctionArguments),
-                        outputLayout));
+                    Partitioning.create(partitioningHandle.get(), partitionFunctionArguments),
+                    outputLayout));
             }
             else if (isUsePreferredWritePartitioning(session)) {
                 // TODO: move to iterative optimizer and use CBO
                 // empty connector partitioning handle means evenly partitioning on partitioning columns
                 partitioningScheme = Optional.of(new PartitioningScheme(
-                        Partitioning.create(FIXED_HASH_DISTRIBUTION, partitionFunctionArguments),
-                        outputLayout));
+                    Partitioning.create(FIXED_HASH_DISTRIBUTION, partitionFunctionArguments),
+                    outputLayout));
             }
         }
 
@@ -585,11 +572,10 @@ public class LogicalPlanner
                         partitioningScheme,
                         Optional.empty(),
                         Optional.empty()),
-                target,
-                symbolAllocator.newSymbol("rows", BIGINT),
-                Optional.empty(),
-                Optional.empty());
-
+                        target,
+                        symbolAllocator.newSymbol("rows", BIGINT),
+                        Optional.empty(),
+                        Optional.empty());
         return new RelationPlan(commitNode, analysis.getRootScope(), commitNode.getOutputSymbols(), Optional.empty());
     }
 
@@ -624,21 +610,21 @@ public class LogicalPlanner
         ResolvedFunction fail = metadata.resolveFunction(QualifiedName.of("fail"), fromTypes(VARCHAR));
 
         return new IfExpression(
-                // check if the trimmed value fits in the target type
-                new ComparisonExpression(
-                        GREATER_THAN_OR_EQUAL,
-                        new GenericLiteral("BIGINT", Integer.toString(targetLength)),
-                        new CoalesceExpression(
-                                new FunctionCall(
-                                        spaceTrimmedLength.toQualifiedName(),
-                                        ImmutableList.of(new Cast(expression, toSqlType(VARCHAR)))),
-                                new GenericLiteral("BIGINT", "0"))),
-                new Cast(expression, toSqlType(toType)),
-                new Cast(
-                        new FunctionCall(
-                                fail.toQualifiedName(),
-                                ImmutableList.of(new Cast(new StringLiteral("Cannot truncate non-space characters on INSERT"), toSqlType(VARCHAR)))),
-                        toSqlType(toType)));
+            // check if the trimmed value fits in the target type
+            new ComparisonExpression(
+                GREATER_THAN_OR_EQUAL,
+                new GenericLiteral("BIGINT", Integer.toString(targetLength)),
+                new CoalesceExpression(
+                    new FunctionCall(
+                        spaceTrimmedLength.toQualifiedName(),
+                        ImmutableList.of(new Cast(expression, toSqlType(VARCHAR)))),
+                    new GenericLiteral("BIGINT", "0"))),
+            new Cast(expression, toSqlType(toType)),
+            new Cast(
+                new FunctionCall(
+                    fail.toQualifiedName(),
+                    ImmutableList.of(new Cast(new StringLiteral("Cannot truncate non-space characters on INSERT"), toSqlType(VARCHAR)))),
+                toSqlType(toType)));
     }
 
     private RelationPlan createDeletePlan(Analysis analysis, Delete node)
@@ -680,36 +666,13 @@ public class LogicalPlanner
 
     private RelationPlan createRelationPlan(Analysis analysis, Query query)
     {
-        return new RelationPlanner(analysis, symbolAllocator, idAllocator, buildLambdaDeclarationToSymbolMap(analysis, symbolAllocator), metadata, Optional.empty(), session, ImmutableMap.of())
-                .process(query, null);
+        return new RelationPlanner(analysis, symbolAllocator, idAllocator, buildLambdaDeclarationToSymbolMap(analysis, symbolAllocator), metadata, Optional.empty(), session)
+            .process(query, null);
     }
 
-    private static Map<NodeRef<LambdaArgumentDeclaration>, Symbol> buildLambdaDeclarationToSymbolMap(Analysis analysis, SymbolAllocator symbolAllocator)
+    public enum Stage
     {
-        Map<Key, Symbol> allocations = new HashMap<>();
-        Map<NodeRef<LambdaArgumentDeclaration>, Symbol> result = new LinkedHashMap<>();
-
-        for (Entry<NodeRef<Expression>, Type> entry : analysis.getTypes().entrySet()) {
-            if (!(entry.getKey().getNode() instanceof LambdaArgumentDeclaration)) {
-                continue;
-            }
-
-            LambdaArgumentDeclaration argument = (LambdaArgumentDeclaration) entry.getKey().getNode();
-            Key key = new Key(argument, entry.getValue());
-
-            // Allocate the same symbol for all lambda argument names with a given type. This is needed to be able to
-            // properly identify multiple instances of syntactically equal lambda expressions during planning as expressions
-            // get rewritten via TranslationMap
-            Symbol symbol = allocations.get(key);
-            if (symbol == null) {
-                symbol = symbolAllocator.newSymbol(argument, entry.getValue());
-                allocations.put(key, symbol);
-            }
-
-            result.put(NodeRef.of(argument), symbol);
-        }
-
-        return result;
+        CREATED, OPTIMIZED, OPTIMIZED_AND_VALIDATED
     }
 
     private static class Key
@@ -734,7 +697,7 @@ public class LogicalPlanner
             }
             Key key = (Key) o;
             return Objects.equals(argument, key.argument) &&
-                    Objects.equals(type, key.type);
+                Objects.equals(type, key.type);
         }
 
         @Override
