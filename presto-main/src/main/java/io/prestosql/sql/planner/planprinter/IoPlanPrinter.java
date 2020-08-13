@@ -38,6 +38,7 @@ import io.prestosql.sql.planner.plan.PlanNode;
 import io.prestosql.sql.planner.plan.PlanVisitor;
 import io.prestosql.sql.planner.plan.TableFinishNode;
 import io.prestosql.sql.planner.plan.TableScanNode;
+import io.prestosql.sql.planner.plan.TableWriterNode;
 import io.prestosql.sql.planner.plan.TableWriterNode.CreateReference;
 import io.prestosql.sql.planner.plan.TableWriterNode.CreateTarget;
 import io.prestosql.sql.planner.plan.TableWriterNode.DeleteTarget;
@@ -652,6 +653,13 @@ public class IoPlanPrinter
                         target.getHandle().getCatalogName().getCatalogName(),
                         target.getSchemaTableName().getSchemaName(),
                         target.getSchemaTableName().getTableName()));
+            }
+            else if (writerTarget instanceof TableWriterNode.RefreshMaterializedViewTarget) {
+                TableWriterNode.RefreshMaterializedViewTarget target = (TableWriterNode.RefreshMaterializedViewTarget) writerTarget;
+                context.setOutputTable(new CatalogSchemaTableName(
+                    target.getHandle().getCatalogName().getCatalogName(),
+                    target.getSchemaTableName().getSchemaName(),
+                    target.getSchemaTableName().getTableName()));
             }
             else if (writerTarget instanceof CreateReference || writerTarget instanceof InsertReference) {
                 throw new IllegalStateException(format("%s should not appear in final plan", writerTarget.getClass().getSimpleName()));
