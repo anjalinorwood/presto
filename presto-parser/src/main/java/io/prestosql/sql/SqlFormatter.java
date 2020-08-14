@@ -795,7 +795,10 @@ public final class SqlFormatter
                 builder.append("SHOW CREATE VIEW ")
                         .append(formatName(node.getName()));
             }
-
+            else if (node.getType() == ShowCreate.Type.MATERIALIZED_VIEW) {
+                builder.append("SHOW CREATE MATERIALIZED VIEW ")
+                        .append(formatName(node.getName()));
+            }
             return null;
         }
 

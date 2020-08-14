@@ -114,8 +114,8 @@ public class CreateMaterializedViewTask
                 session.getCatalog(),
                 session.getSchema(),
                 columns,
-                owner,
                 statement.getComment(),
+                owner,
                 properties);
 
         metadata.createMaterializedView(session, name, definition, statement.isReplace(), statement.isNotExists());
