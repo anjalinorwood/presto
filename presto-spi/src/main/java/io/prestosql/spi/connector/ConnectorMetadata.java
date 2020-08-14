@@ -454,7 +454,7 @@ public interface ConnectorMetadata
     /**
      * Begin materialized view query
      */
-    default ConnectorInsertTableHandle beginRefreshMaterializedView(ConnectorSession session, ConnectorTableHandle tableHandle, boolean skipRefresh)
+    default ConnectorInsertTableHandle beginRefreshMaterializedView(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
         throw new PrestoException(NOT_SUPPORTED, "This connector does not support materialized views");
     }
@@ -463,7 +463,7 @@ public interface ConnectorMetadata
      * Finish materialized view query
      */
     default Optional<ConnectorOutputMetadata> finishRefreshMaterializedView(ConnectorSession session, ConnectorInsertTableHandle insertHandle, Collection<Slice> fragments,
-            Collection<ComputedStatistics> computedStatistics, List<ConnectorTableHandle> sourceTableHandles, boolean skipRefresh)
+            Collection<ComputedStatistics> computedStatistics, List<ConnectorTableHandle> sourceTableHandles)
     {
         throw new PrestoException(GENERIC_INTERNAL_ERROR, "ConnectorMetadata beginRefreshMaterializedView() is implemented without finishRefreshMaterializedView()");
     }

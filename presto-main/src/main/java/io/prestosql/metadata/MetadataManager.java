@@ -847,13 +847,13 @@ public final class MetadataManager
     }
 
     @Override
-    public InsertTableHandle beginRefreshMaterializedView(Session session, TableHandle tableHandle, boolean skipRefresh)
+    public InsertTableHandle beginRefreshMaterializedView(Session session, TableHandle tableHandle)
     {
         CatalogName catalogName = tableHandle.getCatalogName();
         CatalogMetadata catalogMetadata = getCatalogMetadataForWrite(session, catalogName);
         ConnectorMetadata metadata = catalogMetadata.getMetadata();
         ConnectorTransactionHandle transactionHandle = catalogMetadata.getTransactionHandleFor(catalogName);
-        ConnectorInsertTableHandle handle = metadata.beginRefreshMaterializedView(session.toConnectorSession(catalogName), tableHandle.getConnectorHandle(), skipRefresh);
+        ConnectorInsertTableHandle handle = metadata.beginRefreshMaterializedView(session.toConnectorSession(catalogName), tableHandle.getConnectorHandle());
         return new InsertTableHandle(tableHandle.getCatalogName(), transactionHandle, handle);
     }
 
@@ -862,8 +862,7 @@ public final class MetadataManager
             InsertTableHandle tableHandle,
             Collection<Slice> fragments,
             Collection<ComputedStatistics> computedStatistics,
-            List<TableHandle> sourceTableHandles,
-            boolean skipRefresh)
+            List<TableHandle> sourceTableHandles)
     {
         CatalogName catalogName = tableHandle.getCatalogName();
         ConnectorMetadata metadata = getMetadata(session, catalogName);
@@ -871,7 +870,7 @@ public final class MetadataManager
         for (TableHandle handle : sourceTableHandles) {
             sourceConnectorHandles.add(handle.getConnectorHandle());
         }
-        return metadata.finishRefreshMaterializedView(session.toConnectorSession(catalogName), tableHandle.getConnectorHandle(), fragments, computedStatistics, sourceConnectorHandles, skipRefresh);
+        return metadata.finishRefreshMaterializedView(session.toConnectorSession(catalogName), tableHandle.getConnectorHandle(), fragments, computedStatistics, sourceConnectorHandles);
     }
 
     @Override

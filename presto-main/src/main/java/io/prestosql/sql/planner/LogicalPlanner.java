@@ -221,7 +221,8 @@ public class LogicalPlanner
 
     public PlanNode planStatement(Analysis analysis, Statement statement)
     {
-        if (statement instanceof CreateTableAsSelect && analysis.getCreate().get().isCreateTableAsSelectNoOp()) {
+        if ((statement instanceof CreateTableAsSelect && analysis.getCreate().get().isCreateTableAsSelectNoOp()) ||
+                statement instanceof RefreshMaterializedView && analysis.isSkipRefresh()) {
             Symbol symbol = symbolAllocator.newSymbol("rows", BIGINT);
             PlanNode source = new ValuesNode(idAllocator.getNextId(), ImmutableList.of(symbol), ImmutableList.of(ImmutableList.of(new LongLiteral("0"))));
             return new OutputNode(idAllocator.getNextId(), source, ImmutableList.of("rows"), ImmutableList.of(symbol));
@@ -646,8 +647,8 @@ public class LogicalPlanner
 
     private RelationPlan createRelationPlan(Analysis analysis, Query query)
     {
-        return new RelationPlanner(analysis, symbolAllocator, idAllocator, buildLambdaDeclarationToSymbolMap(analysis, symbolAllocator), metadata, Optional.empty(), session)
-                .process(query, null);
+        return new RelationPlanner(analysis, symbolAllocator, idAllocator, buildLambdaDeclarationToSymbolMap(analysis, symbolAllocator), metadata, Optional.empty(), session, ImmutableMap.of())
+            .process(query, null);
     }
 
     private static Map<NodeRef<LambdaArgumentDeclaration>, Symbol> buildLambdaDeclarationToSymbolMap(Analysis analysis, SymbolAllocator symbolAllocator)

@@ -269,13 +269,13 @@ public interface Metadata
     /**
      * Begin refresh materialized view query
      */
-    InsertTableHandle beginRefreshMaterializedView(Session session, TableHandle tableHandle, boolean skipRefresh);
+    InsertTableHandle beginRefreshMaterializedView(Session session, TableHandle tableHandle);
 
     /**
      * Finish refresh materialized view query
      */
     Optional<ConnectorOutputMetadata> finishRefreshMaterializedView(Session session, InsertTableHandle tableHandle, Collection<Slice> fragments,
-            Collection<ComputedStatistics> computedStatistics, List<TableHandle> sourceTableHandles, boolean skipRefresh);
+            Collection<ComputedStatistics> computedStatistics, List<TableHandle> sourceTableHandles);
 
     /**
      * Get the row ID column handle used with UpdatablePageSource.

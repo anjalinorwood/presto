@@ -99,6 +99,7 @@ public class Analysis
     private final Map<NodeRef<Parameter>, Expression> parameters;
     private String updateType;
     private Optional<QualifiedObjectName> target = Optional.empty();
+    private boolean skipRefresh;
 
     private final Map<NodeRef<Table>, Query> namedQueries = new LinkedHashMap<>();
 
@@ -212,6 +213,16 @@ public class Analysis
     {
         this.updateType = null;
         this.target = Optional.empty();
+    }
+
+    public boolean isSkipRefresh()
+    {
+        return skipRefresh;
+    }
+
+    public void setSkipRefresh(boolean skipRefresh)
+    {
+        this.skipRefresh = skipRefresh;
     }
 
     public void setAggregates(QuerySpecification node, List<FunctionCall> aggregates)

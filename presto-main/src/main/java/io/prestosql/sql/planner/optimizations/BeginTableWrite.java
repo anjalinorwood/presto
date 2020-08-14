@@ -189,13 +189,8 @@ public class BeginTableWrite
             }
             if (target instanceof TableWriterNode.RefreshMaterializedViewReference) {
                 TableWriterNode.RefreshMaterializedViewReference refreshMV = (TableWriterNode.RefreshMaterializedViewReference) target;
-                boolean skipRefresh = false;
-
-                if (metadata.isMaterializedViewCurrent(session, refreshMV.getMaterializedViewHandle()).getIsFresh()) {
-                    skipRefresh = true;
-                }
-                return new TableWriterNode.RefreshMaterializedViewTarget(metadata.beginRefreshMaterializedView(session, refreshMV.getStorageTableHandle(), skipRefresh),
-                        metadata.getTableMetadata(session, refreshMV.getStorageTableHandle()).getTable(), skipRefresh, refreshMV.getSourceTableHandles());
+                return new TableWriterNode.RefreshMaterializedViewTarget(metadata.beginRefreshMaterializedView(session, refreshMV.getStorageTableHandle()),
+                        metadata.getTableMetadata(session, refreshMV.getStorageTableHandle()).getTable(), refreshMV.getSourceTableHandles());
             }
             throw new IllegalArgumentException("Unhandled target type: " + target.getClass().getSimpleName());
         }

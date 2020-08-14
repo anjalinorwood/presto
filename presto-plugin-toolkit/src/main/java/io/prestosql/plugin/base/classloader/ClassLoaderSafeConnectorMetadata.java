@@ -438,19 +438,19 @@ public class ClassLoaderSafeConnectorMetadata
     }
 
     @Override
-    public ConnectorInsertTableHandle beginRefreshMaterializedView(ConnectorSession session, ConnectorTableHandle tableHandle, boolean skipRefresh)
+    public ConnectorInsertTableHandle beginRefreshMaterializedView(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
         try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
-            return delegate.beginRefreshMaterializedView(session, tableHandle, skipRefresh);
+            return delegate.beginRefreshMaterializedView(session, tableHandle);
         }
     }
 
     @Override
     public Optional<ConnectorOutputMetadata> finishRefreshMaterializedView(ConnectorSession session, ConnectorInsertTableHandle insertHandle, Collection<Slice> fragments,
-            Collection<ComputedStatistics> computedStatistics, List<ConnectorTableHandle> sourceTableHandles, boolean skipRefresh)
+            Collection<ComputedStatistics> computedStatistics, List<ConnectorTableHandle> sourceTableHandles)
     {
         try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
-            return delegate.finishRefreshMaterializedView(session, insertHandle, fragments, computedStatistics, sourceTableHandles, skipRefresh);
+            return delegate.finishRefreshMaterializedView(session, insertHandle, fragments, computedStatistics, sourceTableHandles);
         }
     }
 

@@ -480,6 +480,14 @@ class StatementAnalyzer
                 throw semanticException(TABLE_NOT_FOUND, refreshMaterializedView, "Table '%s' does not exist", targetTable);
             }
 
+            Optional<TableHandle> materializedViewHandle = metadata.getTableHandle(session, name);
+            if (targetTableHandle.isPresent() && metadata.isMaterializedViewCurrent(session, materializedViewHandle.get()).getIsFresh()) {
+                analysis.setSkipRefresh(true);
+            }
+            else {
+                analysis.setSkipRefresh(false);
+            }
+
             TableMetadata tableMetadata = metadata.getTableMetadata(session, targetTableHandle.get());
             List<String> insertColumns = tableMetadata.getColumns().stream()
                     .filter(column -> !column.isHidden())
@@ -489,7 +497,6 @@ class StatementAnalyzer
             accessControl.checkCanInsertIntoTable(session.toSecurityContext(), targetTable);
 
             Map<String, ColumnHandle> columnHandles = metadata.getColumnHandles(session, targetTableHandle.get());
-            Optional<TableHandle> materializedViewHandle = metadata.getTableHandle(session, name);
             Preconditions.checkState(materializedViewHandle.isPresent());
             analysis.setRefreshMaterializedView(new Analysis.RefreshMaterializedViewAnalysis(
                     materializedViewHandle.get(),

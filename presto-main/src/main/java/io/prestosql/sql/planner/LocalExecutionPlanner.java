@@ -2914,8 +2914,7 @@ public class LocalExecutionPlanner
             }
             else if (target instanceof TableWriterNode.RefreshMaterializedViewTarget) {
                 TableWriterNode.RefreshMaterializedViewTarget refreshTarget = (TableWriterNode.RefreshMaterializedViewTarget) target;
-                return metadata.finishRefreshMaterializedView(session, refreshTarget.getHandle(), fragments, statistics, refreshTarget.getSourceTableHandles(),
-                    refreshTarget.isSkipRefresh());
+                return metadata.finishRefreshMaterializedView(session, refreshTarget.getHandle(), fragments, statistics, refreshTarget.getSourceTableHandles());
             }
             else if (target instanceof DeleteTarget) {
                 metadata.finishDelete(session, ((DeleteTarget) target).getHandle(), fragments);

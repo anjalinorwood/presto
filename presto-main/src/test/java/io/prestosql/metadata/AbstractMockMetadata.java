@@ -339,14 +339,14 @@ public abstract class AbstractMockMetadata
     }
 
     @Override
-    public InsertTableHandle beginRefreshMaterializedView(Session session, TableHandle tableHandle, boolean skipRefresh)
+    public InsertTableHandle beginRefreshMaterializedView(Session session, TableHandle tableHandle)
     {
         throw new UnsupportedOperationException();
     }
 
     @Override
     public Optional<ConnectorOutputMetadata> finishRefreshMaterializedView(Session session, InsertTableHandle tableHandle, Collection<Slice> fragments,
-            Collection<ComputedStatistics> computedStatistics, List<TableHandle> sourceTableHandles, boolean skipRefresh)
+            Collection<ComputedStatistics> computedStatistics, List<TableHandle> sourceTableHandles)
     {
         throw new UnsupportedOperationException();
     }

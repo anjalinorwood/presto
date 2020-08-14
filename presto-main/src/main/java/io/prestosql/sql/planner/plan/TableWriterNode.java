@@ -370,19 +370,16 @@ public class TableWriterNode
     {
         private final InsertTableHandle handle;
         private final SchemaTableName schemaTableName;
-        private final boolean skipRefresh;
         private final List<TableHandle> sourceTableHandles;
 
         @JsonCreator
         public RefreshMaterializedViewTarget(
                 @JsonProperty("handle") InsertTableHandle handle,
                 @JsonProperty("schemaTableName") SchemaTableName schemaTableName,
-                @JsonProperty("skipRefresh") boolean skipRefresh,
                 @JsonProperty("sourceTableHandles") List<TableHandle> sourceTableHandles)
         {
             this.handle = requireNonNull(handle, "handle is null");
             this.schemaTableName = requireNonNull(schemaTableName, "schemaTableName is null");
-            this.skipRefresh = skipRefresh;
             this.sourceTableHandles = ImmutableList.copyOf(sourceTableHandles);
         }
 
@@ -396,12 +393,6 @@ public class TableWriterNode
         public SchemaTableName getSchemaTableName()
         {
             return schemaTableName;
-        }
-
-        @JsonProperty
-        public boolean isSkipRefresh()
-        {
-            return skipRefresh;
         }
 
         @JsonProperty
