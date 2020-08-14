@@ -73,7 +73,8 @@ public class CreateMaterializedViewTask
     }
 
     @Override
-    public ListenableFuture<?> execute(CreateMaterializedView statement,
+    public ListenableFuture<?> execute(
+            CreateMaterializedView statement,
             TransactionManager transactionManager,
             Metadata metadata,
             AccessControl accessControl,

@@ -55,7 +55,6 @@ public class DropMaterializedViewTask
         }
 
         accessControl.checkCanDropView(session.toSecurityContext(), name);
-        accessControl.checkCanDropTable(session.toSecurityContext(), name);
 
         metadata.dropMaterializedView(session, name);
 
