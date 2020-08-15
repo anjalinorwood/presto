@@ -1178,7 +1178,14 @@ class StatementAnalyzer
                 tableHandle = storageHandle;
             }
             else {
-                // Either this is a reference to a logical view or the materialized view is not current and should be expanded like a logical view
+                // This is a stale materialized view and should be expanded like a logical view
+                if (storageHandle.isPresent()) {
+                    Optional<ConnectorMaterializedViewDefinition> optionalMaterializedView = metadata.getMaterializedView(session, name);
+                    if (optionalMaterializedView.isPresent()) {
+                        return createScopeForMaterializedView(table, name, scope, optionalMaterializedView.get());
+                    }
+                }
+                // This is a reference to a logical view
                 Optional<ConnectorViewDefinition> optionalView = metadata.getView(session, name);
                 if (optionalView.isPresent()) {
                     return createScopeForView(table, name, scope, optionalView.get());
@@ -1342,6 +1349,61 @@ class StatementAnalyzer
                             Optional.of(name),
                             Optional.of(column.getName()),
                             false))
+                    .collect(toImmutableList());
+
+            analysis.addRelationCoercion(table, outputFields.stream().map(Field::getType).toArray(Type[]::new));
+
+            analyzeFiltersAndMasks(table, name, Optional.empty(), outputFields, session.getIdentity().getUser());
+
+            return createAndAssignScope(table, scope, outputFields);
+        }
+
+        private List<ConnectorViewDefinition.ViewColumn> translateMaterializedViewColumns(List<ConnectorMaterializedViewDefinition.Column> materializedViewColumns)
+        {
+            List<ConnectorViewDefinition.ViewColumn> viewColumns = new ArrayList<>();
+            for (ConnectorMaterializedViewDefinition.Column column : materializedViewColumns) {
+                viewColumns.add(new ViewColumn(column.getName(), column.getType()));
+            }
+            return viewColumns;
+        }
+
+        private Scope createScopeForMaterializedView(Table table, QualifiedObjectName name, Optional<Scope> scope, ConnectorMaterializedViewDefinition view)
+        {
+            Statement statement = analysis.getStatement();
+            if (statement instanceof CreateMaterializedView) {
+                CreateMaterializedView viewStatement = (CreateMaterializedView) statement;
+                QualifiedObjectName viewNameFromStatement = createQualifiedObjectName(session, viewStatement, viewStatement.getName());
+                if (viewStatement.isReplace() && viewNameFromStatement.equals(name)) {
+                    throw semanticException(VIEW_IS_RECURSIVE, table, "Statement would create a recursive materialized view");
+                }
+            }
+            if (analysis.hasTableInView(table)) {
+                throw semanticException(VIEW_IS_RECURSIVE, table, "Materialized View is recursive");
+            }
+
+            Query query = parseView(view.getOriginalSql(), name, table);
+            analysis.registerNamedQuery(table, query);
+            analysis.registerTableForView(table);
+            RelationType descriptor = analyzeView(query, name, view.getCatalog(), view.getSchema(), view.getOwner(), table);
+            analysis.unregisterTableForView();
+
+            List<ConnectorViewDefinition.ViewColumn> viewColumns = translateMaterializedViewColumns(view.getColumns());
+            if (isViewStale(viewColumns, descriptor.getVisibleFields(), name, table)) {
+                throw semanticException(VIEW_IS_STALE, table, "Materialized View '%s' is stale; it must be re-created", name);
+            }
+
+            // Derive the type of the materialized view from the stored definition, not from the analysis of the underlying query.
+            // This is needed in case the underlying table(s) changed and the query in the materialized view now produces types that
+            // are implicitly coercible to the declared materialized view types.
+            List<Field> outputFields = viewColumns.stream()
+                    .map(column -> Field.newQualified(
+                    table.getName(),
+                    Optional.of(column.getName()),
+                    getViewColumnType(column, name, table),
+                    false,
+                    Optional.of(name),
+                    Optional.of(column.getName()),
+                    false))
                     .collect(toImmutableList());
 
             analysis.addRelationCoercion(table, outputFields.stream().map(Field::getType).toArray(Type[]::new));
